@@ -44,15 +44,17 @@
 namespace occupancy_map_monitor
 {
 
-PointCloudOctomapUpdater::PointCloudOctomapUpdater() : OccupancyMapUpdater("PointCloudUpdater"),
-                                                       private_nh_("~"),
-                                                       scale_(1.0),
-                                                       padding_(0.0),
-                                                       obstacle_range_(std::numeric_limits<double>::infinity()),
-                                                       raytrace_range_(std::numeric_limits<double>::infinity()),
-                                                       point_subsample_(1),
-                                                       point_cloud_subscriber_(NULL),
-                                                       point_cloud_filter_(NULL)
+PointCloudOctomapUpdater::PointCloudOctomapUpdater() :
+  OccupancyMapUpdater("PointCloudUpdater"),
+  nh_("~"),
+  queue_size_(5),
+  padding_scale_(1.0),
+  padding_offset_(0.0),
+  obstacle_range_(std::numeric_limits<double>::infinity()),
+  raytrace_range_(std::numeric_limits<double>::infinity()),
+  point_subsample_(1),
+  point_cloud_subscriber_(NULL),
+  point_cloud_filter_(NULL)
 {
 }
 
@@ -67,24 +69,22 @@ bool PointCloudOctomapUpdater::setParams(XmlRpc::XmlRpcValue &params)
   {
     if (!params.hasMember("point_cloud_topic"))
       return false;
-    point_cloud_topic_ = static_cast<const std::string&>(params["point_cloud_topic"]);
-
+    readXmlParam(params, "point_cloud_topic", &point_cloud_topic_);
+    readXmlParam(params, "filtered_cloud_topic", &filtered_cloud_topic_);
+    readXmlParam(params, "queue_size", &queue_size_);
     readXmlParam(params, "max_range", &obstacle_range_);
     readXmlParam(params, "obstacle_range", &obstacle_range_);
     raytrace_range_ = 1.1*obstacle_range_;
     readXmlParam(params, "raytrace_range", &raytrace_range_);
-    readXmlParam(params, "padding_offset", &padding_);
-    readXmlParam(params, "padding_scale", &scale_);
+    readXmlParam(params, "padding_offset", &padding_offset_);
+    readXmlParam(params, "padding_scale", &padding_scale_);
     readXmlParam(params, "point_subsample", &point_subsample_);
-    if (params.hasMember("filtered_cloud_topic"))
-      filtered_cloud_topic_ = static_cast<const std::string&>(params["filtered_cloud_topic"]);
   }
   catch (XmlRpc::XmlRpcException &ex)
   {
     ROS_ERROR("XmlRpc Exception: %s", ex.getMessage().c_str());
     return false;
   }
-
   return true;
 }
 
@@ -94,7 +94,7 @@ bool PointCloudOctomapUpdater::initialize()
   shape_mask_.reset(new point_containment_filter::ShapeMask());
   shape_mask_->setTransformCallback(boost::bind(&PointCloudOctomapUpdater::getShapeTransform, this, _1, _2));
   if (!filtered_cloud_topic_.empty())
-    filtered_cloud_publisher_ = private_nh_.advertise<sensor_msgs::PointCloud2>(filtered_cloud_topic_, 10, false);
+    filtered_cloud_publisher_ = nh_.advertise<sensor_msgs::PointCloud2>(filtered_cloud_topic_, 10, false);
   return true;
 }
 
@@ -103,10 +103,10 @@ void PointCloudOctomapUpdater::start()
   if (point_cloud_subscriber_)
     return;
   /* subscribe to point cloud topic using tf filter*/
-  point_cloud_subscriber_ = new message_filters::Subscriber<sensor_msgs::PointCloud2>(root_nh_, point_cloud_topic_, 5);
+  point_cloud_subscriber_ = new message_filters::Subscriber<sensor_msgs::PointCloud2>(nh_, point_cloud_topic_, queue_size_);
   if (tf_ && !monitor_->getMapFrame().empty())
   {
-    point_cloud_filter_ = new tf::MessageFilter<sensor_msgs::PointCloud2>(*point_cloud_subscriber_, *tf_, monitor_->getMapFrame(), 5);
+    point_cloud_filter_ = new tf::MessageFilter<sensor_msgs::PointCloud2>(*point_cloud_subscriber_, *tf_, monitor_->getMapFrame(), queue_size_);
     point_cloud_filter_->registerCallback(boost::bind(&PointCloudOctomapUpdater::cloudMsgCallback, this, _1));
     ROS_INFO("Listening to '%s' using message filter with target frame '%s'", point_cloud_topic_.c_str(), point_cloud_filter_->getTargetFramesString().c_str());
   }
@@ -134,7 +134,7 @@ ShapeHandle PointCloudOctomapUpdater::excludeShape(const shapes::ShapeConstPtr &
 {
   ShapeHandle h = 0;
   if (shape_mask_)
-    h = shape_mask_->addShape(shape, scale_, padding_);
+    h = shape_mask_->addShape(shape, padding_scale_, padding_offset_);
   else
     ROS_ERROR("Shape filter not yet initialized!");
   return h;
@@ -194,8 +194,8 @@ void PointCloudOctomapUpdater::cloudMsgCallback(const sensor_msgs::PointCloud2::
 
   /* compute sensor origin in map frame */
   const tf::Vector3 &sensor_origin_tf = map_H_sensor.getOrigin();
-  octomap::point3d sensor_origin(sensor_origin_tf.getX(), sensor_origin_tf.getY(), sensor_origin_tf.getZ());
-  Eigen::Vector3d sensor_origin_eigen(sensor_origin_tf.getX(), sensor_origin_tf.getY(), sensor_origin_tf.getZ());
+  const octomap::point3d sensor_origin(sensor_origin_tf.getX(), sensor_origin_tf.getY(), sensor_origin_tf.getZ());
+  const Eigen::Vector3d sensor_origin_eigen(sensor_origin_tf.getX(), sensor_origin_tf.getY(), sensor_origin_tf.getZ());
 
   if (!updateTransformCache(cloud_msg->header.frame_id, cloud_msg->header.stamp))
   {

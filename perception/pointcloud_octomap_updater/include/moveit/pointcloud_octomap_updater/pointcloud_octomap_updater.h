@@ -73,23 +73,23 @@ private:
   void cloudMsgCallback(const sensor_msgs::PointCloud2::ConstPtr &cloud_msg);
   void stopHelper();
 
-  ros::NodeHandle root_nh_;
-  ros::NodeHandle private_nh_;
+  ros::NodeHandle nh_;
   boost::shared_ptr<tf::Transformer> tf_;
-
-  /* params */
-  std::string point_cloud_topic_;
-  double scale_;
-  double padding_;
-  // Ranges have same meaning as in obstacle layer in costmap_2d of the nav stack
-  double obstacle_range_; // Max range at which obstacle will be inserted
-  double raytrace_range_; // Max range to ray trace free space
-  unsigned int point_subsample_;
-  std::string filtered_cloud_topic_;
-  ros::Publisher filtered_cloud_publisher_;
 
   message_filters::Subscriber<sensor_msgs::PointCloud2> *point_cloud_subscriber_;
   tf::MessageFilter<sensor_msgs::PointCloud2> *point_cloud_filter_;
+  ros::Publisher filtered_cloud_publisher_;
+
+  /* params */
+  std::string point_cloud_topic_;
+  std::string filtered_cloud_topic_;
+  unsigned int queue_size_;
+  // Ranges have same meaning as in obstacle layer in costmap_2d of the nav stack
+  double obstacle_range_; // Max range at which obstacle will be inserted
+  double raytrace_range_; // Max range to ray trace free space
+  double padding_scale_;
+  double padding_offset_;
+  unsigned int point_subsample_;
 
   /* used to store all cells in the map which a given ray passes through during raycasting.
      we cache this here because it dynamically pre-allocates a lot of memory in its contsructor */

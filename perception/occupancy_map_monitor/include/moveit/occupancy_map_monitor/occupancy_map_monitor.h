@@ -200,7 +200,6 @@ private:
 
   std::size_t mesh_handle_count_;
 
-  ros::NodeHandle root_nh_;
   ros::NodeHandle nh_;
   ros::ServiceServer save_map_srv_;
   ros::ServiceServer load_map_srv_;

@@ -69,21 +69,18 @@ private:
   void stopHelper();
 
   ros::NodeHandle nh_;
+  image_transport::ImageTransport image_transport_;
   boost::shared_ptr<tf::Transformer> tf_;
-  image_transport::ImageTransport input_depth_transport_;
-  image_transport::ImageTransport model_depth_transport_;
-  image_transport::ImageTransport filtered_depth_transport_;
-  image_transport::ImageTransport filtered_label_transport_;
 
   image_transport::CameraSubscriber sub_depth_image_;
   image_transport::CameraPublisher pub_model_depth_image_;
   image_transport::CameraPublisher pub_filtered_depth_image_;
   image_transport::CameraPublisher pub_filtered_label_image_;
 
-  std::string filtered_cloud_topic_;
-  std::string sensor_type_;
   std::string image_topic_;
-  std::size_t queue_size_;
+  unsigned int queue_size_;
+  ros::Duration transform_wait_;
+
   double near_clipping_plane_distance_;
   double far_clipping_plane_distance_;
   double shadow_threshold_;
@@ -92,18 +89,12 @@ private:
   unsigned int skip_vertical_pixels_;
   unsigned int skip_horizontal_pixels_;
 
-  unsigned int image_callback_count_;
-  double average_callback_dt_;
-  unsigned int good_tf_;
-  unsigned int failed_tf_;
-
   boost::scoped_ptr<mesh_filter::MeshFilter<mesh_filter::StereoCameraModel> > mesh_filter_;
   boost::scoped_ptr<LazyFreeSpaceUpdater> free_space_updater_;
 
   std::vector<float> x_cache_, y_cache_;
   double inv_fx_, inv_fy_, K0_, K2_, K4_, K5_;
   std::vector<unsigned int> filtered_labels_;
-  ros::WallTime last_depth_callback_start_;
 
 };
 }
